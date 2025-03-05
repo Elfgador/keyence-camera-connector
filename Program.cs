@@ -13,8 +13,10 @@ class Program
             EtherNetIPClient.Connect(CameraIp);
 
             // Run program
-            byte[] runCommand = Command.Create24BytesCommand(1, CommandsNumber.RUN);
+            byte[] runCommand = Command.CreateCommand(1, CommandsNumber.RUN, []);
             string res = await EtherNetIPClient.SendCommand(runCommand);
+
+            Console.WriteLine($"Result : {res}");
 
             // Close connection
             EtherNetIPClient.CloseConnection();
