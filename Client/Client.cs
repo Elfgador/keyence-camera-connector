@@ -33,12 +33,17 @@ namespace CameraConnector.Client
             private set { _socket = value; }
         }
 
-        public static void Connect(string ipAddress)
+        public static async Task Connect(string ipAddress)
         {
+            Console.WriteLine("Connecting..");
             IpAddress = IPAddress.Parse(ipAddress);
             var endpoint = new IPEndPoint(IPAddress.Parse(ipAddress), TCPPort);
-            Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            Socket.Connect(endpoint);
+            Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+            {
+                SendTimeout = 5000,
+                ReceiveTimeout = 5000,
+            };
+            await Socket.ConnectAsync(endpoint);
             Console.WriteLine("Connected to the camera!");
         }
 
@@ -49,7 +54,7 @@ namespace CameraConnector.Client
                 throw new InvalidOperationException("Socket is not connected.");
             }
 
-            Socket.Send(commandData);
+            await Socket.SendAsync(commandData);
             Console.WriteLine("Command Sent!");
             return await ReceiveResponse();
         }
@@ -69,7 +74,7 @@ namespace CameraConnector.Client
                 while (bytesReceived == 0)
                 {
                     Console.WriteLine("Waiting for response...");
-                    bytesReceived = Socket.Receive(buffer);
+                    bytesReceived = await Socket.ReceiveAsync(buffer);
                     await Task.Delay(500);
                 }
 
