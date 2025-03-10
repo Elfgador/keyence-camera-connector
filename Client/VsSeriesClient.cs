@@ -4,25 +4,47 @@ using Sres.Net.EEIP;
 
 namespace CameraConnector.Client;
 
-public class CameraClient
+public class VsSeriesClient : EEIPClient
 {
-    public CameraClient(string ipAddress, ushort port = 44818)
+    public VsSeriesClient(string ipAddress, ushort port = 44818)
     {
-        IpAddress = ipAddress;
-        TcpPort = port;
-        Client = new EEIPClient();
-        var connectRes = Client.RegisterSession(IpAddress, TcpPort);
-        
+        IPAddress = ipAddress;
+        TCPPort = port;
+
+        var connectRes = RegisterSession(IPAddress, TCPPort);
+
         if (connectRes == 0)
         {
             throw new ApplicationException("Failed to register session");
         }
 
-        Console.WriteLine($"Connected with : {Client.IdentityObject.ProductName}");
+        //Parameters from Originator -> Target | Data
+        O_T_InstanceID = ReceivedOutputInstanceId;
+        O_T_Length = 496;
+        O_T_ConnectionType = ConnectionType.Point_to_Point;
+        O_T_Priority = Priority.Scheduled;
+        O_T_VariableLength = false;
+        O_T_OwnerRedundant = false;
+        O_T_RealTimeFormat = RealTimeFormat.Modeless;
+
+        //Parameters from Target -> Originator | Response
+        T_O_InstanceID = SentOutputInstanceId;
+        T_O_Length = 496;
+        T_O_ConnectionType = ConnectionType.Point_to_Point;
+        T_O_Priority = Priority.Scheduled;
+        T_O_VariableLength = false;
+        T_O_OwnerRedundant = false;
+        T_O_RealTimeFormat = RealTimeFormat.Modeless;
+
+        Console.WriteLine($"Connected with : {IdentityObject.ProductName}");
         Console.WriteLine($"Status : {RunStatusString}");
 
         IsConnected = true;
     }
+
+    public bool IsConnected { get; private set; } = false;
+    
+    public string? ResponseToString() => T_O_IOData.ToString();
 
     private const int GetStatusAttributeId = 0x28;
 
@@ -41,45 +63,11 @@ public class CameraClient
     // Response slot
     private const int RunStatusSlot = 2; // Bit 4
 
-    private EEIPClient Client { get; }
-    private static string IpAddress { get; set; } = "192.168.0.1"; // Default ip
-    private static ushort UdpPort { get; set; } = 0x08AE; // 2222 Default udp port
-    private static ushort TcpPort { get; set; } = 0xAF12; //  44818 Default tcp port
-    public bool IsConnected { get; private set; } = false;
-
-    private byte[] Data
-    {
-        get
-        {
-            var data = Client.GetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
-                AssemblyObjectDataAttributeId);
-
-            if (data == null) throw new DataException();
-            return data;
-        }
-        set => Client.SetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
-            AssemblyObjectDataAttributeId, value);
-    }
-
-    private byte[] Response
-    {
-        get
-        {
-            var response = Client.GetAttributeSingle(AssemblyObjectClassId, SentOutputInstanceId,
-                AssemblyObjectDataAttributeId);
-            if (response == null) throw new DataException();
-
-            return response;
-        }
-    }
-
-    public string? ResponseToString() => Response.ToString();
-
     private int RunStatus // 0: Setup Mode, 1: Run Mode
     {
         get
         {
-            var response = Response;
+            var response = this.T_O_IOData;
             if (response == null) throw new DataException();
             var statusSlot = response[RunStatusSlot];
             var mode = (statusSlot >> 4) & 0x01;
@@ -87,15 +75,12 @@ public class CameraClient
         }
     }
 
-
-    public string RunStatusString => RunStatus == 0 ? "Setup Mode" : "Run Mode";
-
     public uint ProgramNumber
     {
         get
         {
             var programNumberBytes = new byte[4];
-            Array.Copy(Data, ProgramNumberSlot, programNumberBytes, 0, 4);
+            Array.Copy(O_T_IOData, ProgramNumberSlot, programNumberBytes, 0, 4);
             var programNumber = BitConverter.ToUInt32(programNumberBytes, 0);
             return programNumber;
         }
@@ -103,11 +88,11 @@ public class CameraClient
         {
             var programBytes = new byte[4];
             BitConverter.GetBytes(value).CopyTo(programBytes, 0);
-            var newData = Data;
+            var newData = O_T_IOData;
 
             Array.Copy(programBytes, 0, newData, ProgramNumberSlot, 4);
 
-            Data = newData;
+            O_T_IOData = newData;
         }
     }
 
@@ -117,19 +102,23 @@ public class CameraClient
         {
             var commandNumberBytes = new byte[4];
 
-            Array.Copy(Data, CommandNumberSlot, commandNumberBytes, 0, 4);
+            Array.Copy(O_T_IOData, CommandNumberSlot, commandNumberBytes, 0, 4);
 
             return commandNumberBytes;
         }
         set
         {
-            var newData = Data;
+            var newData = O_T_IOData;
 
             Array.Copy(value, 0, newData, CommandNumberSlot, value.Length);
 
-            Data = newData;
+            O_T_IOData = newData;
         }
     }
+
+
+    public string RunStatusString => RunStatus == 0 ? "Setup Mode" : "Run Mode";
+
 
     public byte[] CreateCommand(CommandsNumber command, byte[] parameters)
     {
@@ -144,7 +133,7 @@ public class CameraClient
 
     public override string ToString()
     {
-        return $"Product Name : {Client.IdentityObject.ProductName}\n" +
+        return $"Product Name : {IdentityObject.ProductName}\n" +
                $"Mode : {RunStatusString}\n" +
                $"CommandNumber : {CommandNumber}\n" +
                $"ProgramNumber : {ProgramNumber}\n";
@@ -152,8 +141,8 @@ public class CameraClient
 
     public void Disconnect()
     {
-        Client.ForwardClose();
-        Client.UnRegisterSession();
+        ForwardClose();
+        UnRegisterSession();
         IsConnected = false;
     }
 }
