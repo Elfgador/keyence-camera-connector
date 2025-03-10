@@ -15,18 +15,21 @@ dotnet run
 - Print result
 - Close connection
 
-## Run simulator with docker
+## To publish
 
 ```bash
+# Windows
+dotnet publish -c Release -r win-x64 --self-contained true
+dotnet publish -c Release -r win-x86 --self-contained true
 
-docker pull iotechsys/ethernetip-sim:1.0.4-arm64
+# Linux
+dotnet publish -c Release -r linux-x64 --self-contained true
 
-docker run -i --rm --name=ethernetip-sim --network=EthernetIp iotechsys/ethernetip-sim:1.0.4-arm64
+# Mac
+dotnet publish -c Release -r osx-arm64 --self-contained true
+```
 
-# Get ip
-docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ethernetip-sim
-
-# Stop
-docker stop ethernetip-sim
-
+## Lib
+```xaml
+  <PackageReference Include="EEIP" Version="1.6.0.26419" /> 
 ```
