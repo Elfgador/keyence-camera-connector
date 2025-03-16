@@ -7,6 +7,7 @@ internal static class Program
 {
     private const string CameraIp = "192.168.10.99";
     private const string SimulatorIp = "192.168.1.65";
+    private const string LocalIp = "127.0.0.1";
     private const int TcpPort = 44818;
 
     private static async Task Main()
