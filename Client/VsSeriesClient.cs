@@ -6,10 +6,10 @@ namespace CameraConnector.Client;
 
 public class VsSeriesClient : EEIPClient
 {
-    public VsSeriesClient(string ipAddress, ushort port = 44818)
+    public VsSeriesClient(string ipAddress, ushort tcpPort = 44818)
     {
         IPAddress = ipAddress;
-        TCPPort = port;
+        TCPPort = tcpPort;
 
         var connectRes = RegisterSession(IPAddress, TCPPort);
 
@@ -28,6 +28,7 @@ public class VsSeriesClient : EEIPClient
         O_T_RealTimeFormat = RealTimeFormat.Modeless;
 
         //Parameters from Target -> Originator | Response
+        //  TargetUDPPort = 0x8AE;
         T_O_InstanceID = SentOutputInstanceId;
         T_O_Length = 496;
         T_O_ConnectionType = ConnectionType.Point_to_Point;
@@ -43,7 +44,7 @@ public class VsSeriesClient : EEIPClient
     }
 
     public bool IsConnected { get; private set; } = false;
-    
+
     public string? ResponseToString() => T_O_IOData.ToString();
 
     private const int GetStatusAttributeId = 0x28;
@@ -68,11 +69,23 @@ public class VsSeriesClient : EEIPClient
         get
         {
             var response = this.T_O_IOData;
-            if (response == null) throw new DataException();
+            if (response == null)
+                throw new DataException();
             var statusSlot = response[RunStatusSlot];
             var mode = (statusSlot >> 4) & 0x01;
             return mode;
         }
+    }
+
+    public uint Explicit_ProgramNumber
+    {
+        get
+        {
+            var res = GetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
+                AssemblyObjectDataAttributeId);
+            return BitConverter.ToUInt32(res, 0);
+        }
+        set { }
     }
 
     public uint ProgramNumber
@@ -116,9 +129,7 @@ public class VsSeriesClient : EEIPClient
         }
     }
 
-
     public string RunStatusString => RunStatus == 0 ? "Setup Mode" : "Run Mode";
-
 
     public byte[] CreateCommand(CommandsNumber command, byte[] parameters)
     {
@@ -133,10 +144,10 @@ public class VsSeriesClient : EEIPClient
 
     public override string ToString()
     {
-        return $"Product Name : {IdentityObject.ProductName}\n" +
-               $"Mode : {RunStatusString}\n" +
-               $"CommandNumber : {CommandNumber}\n" +
-               $"ProgramNumber : {ProgramNumber}\n";
+        return $"Product Name : {IdentityObject.ProductName}\n"
+               + $"Mode : {RunStatusString}\n"
+               + $"CommandNumber : {CommandNumber}\n"
+               + $"ProgramNumber : {ProgramNumber}\n";
     }
 
     public void Disconnect()

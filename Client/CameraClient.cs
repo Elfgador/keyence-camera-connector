@@ -12,7 +12,7 @@ public class CameraClient
         TcpPort = port;
         Client = new EEIPClient();
         var connectRes = Client.RegisterSession(IpAddress, TcpPort);
-        
+
         if (connectRes == 0)
         {
             throw new ApplicationException("Failed to register session");
@@ -41,7 +41,7 @@ public class CameraClient
     // Response slot
     private const int RunStatusSlot = 2; // Bit 4
 
-    private EEIPClient Client { get; }
+    public EEIPClient Client { get; }
     private static string IpAddress { get; set; } = "192.168.0.1"; // Default ip
     private static ushort UdpPort { get; set; } = 0x08AE; // 2222 Default udp port
     private static ushort TcpPort { get; set; } = 0xAF12; //  44818 Default tcp port
@@ -49,14 +49,10 @@ public class CameraClient
 
     private byte[] Data
     {
-        get
-        {
-            var data = Client.GetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
-                AssemblyObjectDataAttributeId);
+        get =>
+            Client.GetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
+                AssemblyObjectDataAttributeId) ?? [];
 
-            if (data == null) throw new DataException();
-            return data;
-        }
         set => Client.SetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
             AssemblyObjectDataAttributeId, value);
     }
@@ -101,12 +97,11 @@ public class CameraClient
         }
         set
         {
+            var newData = Data;
             var programBytes = new byte[4];
             BitConverter.GetBytes(value).CopyTo(programBytes, 0);
-            var newData = Data;
 
             Array.Copy(programBytes, 0, newData, ProgramNumberSlot, 4);
-
             Data = newData;
         }
     }
