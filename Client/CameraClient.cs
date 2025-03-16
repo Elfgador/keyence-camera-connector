@@ -25,22 +25,6 @@ namespace CameraConnector.Client
             IsConnected = true;
         }
 
-        private const int GetStatusAttributeId = 0x28;
-
-        // Assembly Object Constants
-        private const int AssemblyObjectClassId = 0x04;
-        private const int AssemblyObjectDataAttributeId = 0x03; // ⚠️can't be set with SentOutputInstanceId
-        private const int ReceivedOutputInstanceId = 0x65;
-        private const int SentOutputInstanceId = 0x64;
-
-        // Assembly Object Data and Response Slot
-        // Data slot
-        private const int ProgramNumberSlot = 8;
-
-        private const int CommandNumberSlot = 12;
-
-        // Response slot
-        private const int RunStatusSlot = 2; // Bit 4
 
         public EEIPClient Client { get; }
         private static string IpAddress { get; set; } = "192.168.0.1"; // Default ip
@@ -51,19 +35,22 @@ namespace CameraConnector.Client
         private byte[] Data
         {
             get =>
-                Client.GetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
-                    AssemblyObjectDataAttributeId) ?? Array.Empty<byte>();
+                Client.GetAttributeSingle(VsSeriesConstants.AssemblyObjectClassId,
+                    VsSeriesConstants.ReceivedOutputInstanceId,
+                    VsSeriesConstants.AssemblyObjectDataAttributeId) ?? Array.Empty<byte>();
 
-            set => Client.SetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
-                AssemblyObjectDataAttributeId, value);
+            set => Client.SetAttributeSingle(VsSeriesConstants.AssemblyObjectClassId,
+                VsSeriesConstants.ReceivedOutputInstanceId,
+                VsSeriesConstants.AssemblyObjectDataAttributeId, value);
         }
 
         private byte[] Response
         {
             get
             {
-                var response = Client.GetAttributeSingle(AssemblyObjectClassId, SentOutputInstanceId,
-                    AssemblyObjectDataAttributeId);
+                var response = Client.GetAttributeSingle(VsSeriesConstants.AssemblyObjectClassId,
+                    VsSeriesConstants.SentOutputInstanceId,
+                    VsSeriesConstants.AssemblyObjectDataAttributeId);
                 if (response == null) throw new DataException();
 
                 return response;
@@ -78,7 +65,7 @@ namespace CameraConnector.Client
             {
                 var response = Response;
                 if (response == null) throw new DataException();
-                var statusSlot = response[RunStatusSlot];
+                var statusSlot = response[VsSeriesConstants.RunStatusSlot];
                 var mode = (statusSlot >> 4) & 0x01;
                 return mode;
             }
@@ -92,7 +79,7 @@ namespace CameraConnector.Client
             get
             {
                 var programNumberBytes = new byte[4];
-                Array.Copy(Data, ProgramNumberSlot, programNumberBytes, 0, 4);
+                Array.Copy(Data, VsSeriesConstants.ProgramNumberSlot, programNumberBytes, 0, 4);
                 var programNumber = BitConverter.ToUInt32(programNumberBytes, 0);
                 return programNumber;
             }
@@ -102,7 +89,7 @@ namespace CameraConnector.Client
                 var programBytes = new byte[4];
                 BitConverter.GetBytes(value).CopyTo(programBytes, 0);
 
-                Array.Copy(programBytes, 0, newData, ProgramNumberSlot, 4);
+                Array.Copy(programBytes, 0, newData, VsSeriesConstants.ProgramNumberSlot, 4);
                 Data = newData;
             }
         }
@@ -113,7 +100,7 @@ namespace CameraConnector.Client
             {
                 var commandNumberBytes = new byte[4];
 
-                Array.Copy(Data, CommandNumberSlot, commandNumberBytes, 0, 4);
+                Array.Copy(Data, VsSeriesConstants.CommandNumberSlot, commandNumberBytes, 0, 4);
 
                 return commandNumberBytes;
             }
@@ -121,7 +108,7 @@ namespace CameraConnector.Client
             {
                 var newData = Data;
 
-                Array.Copy(value, 0, newData, CommandNumberSlot, value.Length);
+                Array.Copy(value, 0, newData, VsSeriesConstants.CommandNumberSlot, value.Length);
 
                 Data = newData;
             }
