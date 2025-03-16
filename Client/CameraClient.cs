@@ -1,154 +1,156 @@
+using System;
 using System.Data;
 using CameraConnector.Command;
 using Sres.Net.EEIP;
 
-namespace CameraConnector.Client;
-
-public class CameraClient
+namespace CameraConnector.Client
 {
-    public CameraClient(string ipAddress, ushort port = 44818)
+    public class CameraClient
     {
-        IpAddress = ipAddress;
-        TcpPort = port;
-        Client = new EEIPClient();
-        var connectRes = Client.RegisterSession(IpAddress, TcpPort);
-
-        if (connectRes == 0)
+        public CameraClient(string ipAddress, ushort port = 44818)
         {
-            throw new ApplicationException("Failed to register session");
+            IpAddress = ipAddress;
+            TcpPort = port;
+            Client = new EEIPClient();
+            var connectRes = Client.RegisterSession(IpAddress, TcpPort);
+
+            if (connectRes == 0)
+            {
+                throw new ApplicationException("Failed to register session");
+            }
+
+            Console.WriteLine($"Connected with : {Client.IdentityObject.ProductName}");
+            Console.WriteLine($"Status : {RunStatusString}");
+
+            IsConnected = true;
         }
 
-        Console.WriteLine($"Connected with : {Client.IdentityObject.ProductName}");
-        Console.WriteLine($"Status : {RunStatusString}");
+        private const int GetStatusAttributeId = 0x28;
 
-        IsConnected = true;
-    }
+        // Assembly Object Constants
+        private const int AssemblyObjectClassId = 0x04;
+        private const int AssemblyObjectDataAttributeId = 0x03; // ⚠️can't be set with SentOutputInstanceId
+        private const int ReceivedOutputInstanceId = 0x65;
+        private const int SentOutputInstanceId = 0x64;
 
-    private const int GetStatusAttributeId = 0x28;
+        // Assembly Object Data and Response Slot
+        // Data slot
+        private const int ProgramNumberSlot = 8;
 
-    // Assembly Object Constants
-    private const int AssemblyObjectClassId = 0x04;
-    private const int AssemblyObjectDataAttributeId = 0x03; // ⚠️can't be set with SentOutputInstanceId
-    private const int ReceivedOutputInstanceId = 0x65;
-    private const int SentOutputInstanceId = 0x64;
+        private const int CommandNumberSlot = 12;
 
-    // Assembly Object Data and Response Slot
-    // Data slot
-    private const int ProgramNumberSlot = 8;
+        // Response slot
+        private const int RunStatusSlot = 2; // Bit 4
 
-    private const int CommandNumberSlot = 12;
+        public EEIPClient Client { get; }
+        private static string IpAddress { get; set; } = "192.168.0.1"; // Default ip
+        private static ushort UdpPort { get; set; } = 0x08AE; // 2222 Default udp port
+        private static ushort TcpPort { get; set; } = 0xAF12; //  44818 Default tcp port
+        public bool IsConnected { get; private set; } = false;
 
-    // Response slot
-    private const int RunStatusSlot = 2; // Bit 4
-
-    public EEIPClient Client { get; }
-    private static string IpAddress { get; set; } = "192.168.0.1"; // Default ip
-    private static ushort UdpPort { get; set; } = 0x08AE; // 2222 Default udp port
-    private static ushort TcpPort { get; set; } = 0xAF12; //  44818 Default tcp port
-    public bool IsConnected { get; private set; } = false;
-
-    private byte[] Data
-    {
-        get =>
-            Client.GetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
-                AssemblyObjectDataAttributeId) ?? [];
-
-        set => Client.SetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
-            AssemblyObjectDataAttributeId, value);
-    }
-
-    private byte[] Response
-    {
-        get
+        private byte[] Data
         {
-            var response = Client.GetAttributeSingle(AssemblyObjectClassId, SentOutputInstanceId,
-                AssemblyObjectDataAttributeId);
-            if (response == null) throw new DataException();
+            get =>
+                Client.GetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
+                    AssemblyObjectDataAttributeId) ?? Array.Empty<byte>();
 
-            return response;
+            set => Client.SetAttributeSingle(AssemblyObjectClassId, ReceivedOutputInstanceId,
+                AssemblyObjectDataAttributeId, value);
         }
-    }
 
-    public string? ResponseToString() => Response.ToString();
-
-    private int RunStatus // 0: Setup Mode, 1: Run Mode
-    {
-        get
+        private byte[] Response
         {
-            var response = Response;
-            if (response == null) throw new DataException();
-            var statusSlot = response[RunStatusSlot];
-            var mode = (statusSlot >> 4) & 0x01;
-            return mode;
+            get
+            {
+                var response = Client.GetAttributeSingle(AssemblyObjectClassId, SentOutputInstanceId,
+                    AssemblyObjectDataAttributeId);
+                if (response == null) throw new DataException();
+
+                return response;
+            }
         }
-    }
 
+        public string ResponseToString() => Response.ToString();
 
-    public string RunStatusString => RunStatus == 0 ? "Setup Mode" : "Run Mode";
-
-    public uint ProgramNumber
-    {
-        get
+        private int RunStatus // 0: Setup Mode, 1: Run Mode
         {
-            var programNumberBytes = new byte[4];
-            Array.Copy(Data, ProgramNumberSlot, programNumberBytes, 0, 4);
-            var programNumber = BitConverter.ToUInt32(programNumberBytes, 0);
-            return programNumber;
+            get
+            {
+                var response = Response;
+                if (response == null) throw new DataException();
+                var statusSlot = response[RunStatusSlot];
+                var mode = (statusSlot >> 4) & 0x01;
+                return mode;
+            }
         }
-        set
+
+
+        public string RunStatusString => RunStatus == 0 ? "Setup Mode" : "Run Mode";
+
+        public uint ProgramNumber
         {
-            var newData = Data;
-            var programBytes = new byte[4];
-            BitConverter.GetBytes(value).CopyTo(programBytes, 0);
+            get
+            {
+                var programNumberBytes = new byte[4];
+                Array.Copy(Data, ProgramNumberSlot, programNumberBytes, 0, 4);
+                var programNumber = BitConverter.ToUInt32(programNumberBytes, 0);
+                return programNumber;
+            }
+            set
+            {
+                var newData = Data;
+                var programBytes = new byte[4];
+                BitConverter.GetBytes(value).CopyTo(programBytes, 0);
 
-            Array.Copy(programBytes, 0, newData, ProgramNumberSlot, 4);
-            Data = newData;
+                Array.Copy(programBytes, 0, newData, ProgramNumberSlot, 4);
+                Data = newData;
+            }
         }
-    }
 
-    public byte[] CommandNumber
-    {
-        get
+        public byte[] CommandNumber
         {
-            var commandNumberBytes = new byte[4];
+            get
+            {
+                var commandNumberBytes = new byte[4];
 
-            Array.Copy(Data, CommandNumberSlot, commandNumberBytes, 0, 4);
+                Array.Copy(Data, CommandNumberSlot, commandNumberBytes, 0, 4);
 
-            return commandNumberBytes;
+                return commandNumberBytes;
+            }
+            set
+            {
+                var newData = Data;
+
+                Array.Copy(value, 0, newData, CommandNumberSlot, value.Length);
+
+                Data = newData;
+            }
         }
-        set
+
+        public byte[] CreateCommand(CommandsNumber command, byte[] parameters)
         {
-            var newData = Data;
+            var commandBytes = new byte[4 + parameters.Length];
 
-            Array.Copy(value, 0, newData, CommandNumberSlot, value.Length);
+            BitConverter.GetBytes((int)command).CopyTo(commandBytes, 0);
 
-            Data = newData;
+            Array.Copy(parameters, 0, commandBytes, 4, parameters.Length);
+
+            return commandBytes;
         }
-    }
 
-    public byte[] CreateCommand(CommandsNumber command, byte[] parameters)
-    {
-        var commandBytes = new byte[4 + parameters.Length];
+        public override string ToString()
+        {
+            return $"Product Name : {Client.IdentityObject.ProductName}\n" +
+                   $"Mode : {RunStatusString}\n" +
+                   $"CommandNumber : {CommandNumber}\n" +
+                   $"ProgramNumber : {ProgramNumber}\n";
+        }
 
-        BitConverter.GetBytes((int)command).CopyTo(commandBytes, 0);
-
-        Array.Copy(parameters, 0, commandBytes, 4, parameters.Length);
-
-        return commandBytes;
-    }
-
-    public override string ToString()
-    {
-        return $"Product Name : {Client.IdentityObject.ProductName}\n" +
-               $"Mode : {RunStatusString}\n" +
-               $"CommandNumber : {CommandNumber}\n" +
-               $"ProgramNumber : {ProgramNumber}\n";
-    }
-
-    public void Disconnect()
-    {
-        Client.ForwardClose();
-        Client.UnRegisterSession();
-        IsConnected = false;
+        public void Disconnect()
+        {
+            Client.ForwardClose();
+            Client.UnRegisterSession();
+            IsConnected = false;
+        }
     }
 }
