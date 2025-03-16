@@ -16,7 +16,7 @@ namespace CameraConnector
         {
             try
             {
-                await Scripts.ImplicitMessaging(LocalIp, TcpPort);
+                await Scripts.ImplicitMessaging(CameraIp, TcpPort);
             }
             catch (Exception e)
             {
