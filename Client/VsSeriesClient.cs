@@ -50,15 +50,12 @@ namespace CameraConnector.Client
         public string ResponseToString() => T_O_IOData.ToString();
 
 
-        private int RunStatus // 0: Setup Mode, 1: Run Mode
+        private bool RunStatus // 0: Setup Mode, 1: Run Mode
         {
             get
             {
-                var response = this.T_O_IOData;
-                if (response == null)
-                    throw new DataException();
-                var statusSlot = response[VsSeriesConstants.RunStatusSlot];
-                var mode = (statusSlot >> 4) & 0x01;
+                // var mode = (statusSlot >> 4) & 0x01;
+                var mode = ToBool(T_O_IOData[VsSeriesConstants.RunStatusSlot], 4);
                 return mode;
             }
         }
@@ -116,7 +113,7 @@ namespace CameraConnector.Client
             }
         }
 
-        public string RunStatusString => RunStatus == 0 ? "Setup Mode" : "Run Mode";
+        public string RunStatusString => RunStatus is false ? "Setup Mode" : "Run Mode";
 
         public byte[] CreateCommand(CommandsNumber command, byte[] parameters)
         {
