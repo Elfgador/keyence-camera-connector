@@ -60,18 +60,6 @@ namespace CameraConnector.Client
             }
         }
 
-        public uint ExplicitProgramNumber
-        {
-            get
-            {
-                var res = GetAttributeSingle(VsSeriesConstants.AssemblyObjectClassId,
-                    VsSeriesConstants.ReceivedOutputInstanceId,
-                    VsSeriesConstants.AssemblyObjectDataAttributeId);
-                return BitConverter.ToUInt32(res, 0);
-            }
-            set { }
-        }
-
         public uint ProgramNumber
         {
             get
